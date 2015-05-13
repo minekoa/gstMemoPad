@@ -1,6 +1,7 @@
 #!/usr/bin/env gst
 
 PackageLoader fileInPackage: 'GTK'.
+PackageLoader fileInPackage: 'Iconv'.
 
 Object subclass: PettitWorkspace [
     | rootbox sw1 sw2 textview textbuf list doitBtn window |
@@ -15,6 +16,7 @@ Object subclass: PettitWorkspace [
     ]
 
     show [
+	| header listModel |
         window := GTK.GtkWindow new: GTK.Gtk gtkWindowToplevel.
         window setTitle: 'GUI Tester'.
         window connectSignal: 'delete_event' 
@@ -25,13 +27,55 @@ Object subclass: PettitWorkspace [
         rootbox := GTK.GtkVBox new: false spacing: 0.
         window add: rootbox.
 
-	list := GTK.GtkList new.
-	'/media/cofs3/tools/memopad/memo' asFile namesDo: [:filename|
-	    | listItem |
-		listItem := GTK.GtkListItem newWithLabel: filename.
-	    list add: listItem.
-	    listItem show
+	"Table for Memo-List"
+	list := GTK.GtkTreeView new.
+	header := #('Date' 'Title').
+	header keysAndValuesDo: [ :i :value |
+	    | rend col |
+	    rend := GTK.GtkCellRendererText new.
+	    col  := GTK.GtkTreeViewColumn new.
+	    col setTitle: value;
+		packStart: rend expand: true;
+		addAttribute: rend attribute: 'text' column: i-1.
+	    list insertColumn: col position: -1
 	].
+
+	listModel := GTK.GtkListStore new: 2
+				      varargs: { GTK.GValue gTypeString.
+						 GTK.GValue gTypeString }.
+	list setModel: listModel.
+
+	'/media/cofs3/tools/memopad/memo' asFile namesDo: [:filename|
+	    | iter file title|
+	    file := '/media/cofs3/tools/memopad/memo' / filename asFile.
+	    (file isDirectory not & (filename = 'trash') not) ifTrue: [
+		iter := GTK.GtkTreeIter new.
+		listModel append: iter.
+		listModel setOop: iter column: 0 value: filename.
+		title := (file open: 'rw') nextLine.
+		title ifNil: [title := ''] 
+		      ifNotNil: [title := (title asString asUnicodeString:'CP932') asByteArray].
+	        listModel setOop: iter column: 1 value: title
+	    ]
+	].
+
+	list getSelection connectSignal: 'changed' 
+			  to: [ 
+			      | iter |
+			      iter := GTK.GtkTreeIter type new.
+			      (list getSelection getSelected: nil iter: iter)
+				  ifTrue: [
+				      |result f|
+				      result := list getModel getOop: iter column: 1.
+				      result printNl. 
+
+				      f := '/media/cofs3/tools/memopad/memo' / 
+					  (list getModel getOop: iter column: 0) asString.
+				      textbuf setText: (f contents asUnicodeString: 'CP932') asByteArray
+				  ]
+				 
+			  ] selector: #value.
+
         sw1 := GTK.GtkScrolledWindow withChild: list.
         sw1 setPolicy: GTK.Gtk gtkPolicyAutomatic
 	    vscrollbarPolicy: GTK.Gtk gtkPolicyAlways.
