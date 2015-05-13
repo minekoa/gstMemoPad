@@ -2,23 +2,26 @@
 
 PackageLoader fileInPackage: 'GTK'.
 PackageLoader fileInPackage: 'Iconv'.
+FileStream fileIn: 'memo.st'.
 
 Object subclass: PettitWorkspace [
-    | rootbox sw1 sw2 textview textbuf list doitBtn window |
+    | rootbox sw1 sw2 textview textbuf list doitBtn window binder currentMemo |
 
     doit [
         ^Behavior evalString: textbuf text to: self.
     ]
 
     delete: aWiget event: aGdkEvent [
+	self saveCurrentMemo.
+	binder save.
+
         GTK.Gtk mainQuit.
         ^false
     ]
 
     show [
-	| header listModel |
         window := GTK.GtkWindow new: GTK.Gtk gtkWindowToplevel.
-        window setTitle: 'GUI Tester'.
+        window setTitle: 'MemoPad-st ver.0.0.1'.
         window connectSignal: 'delete_event' 
             to: self selector: #delete:event: userData: nil.
 
@@ -27,60 +30,16 @@ Object subclass: PettitWorkspace [
         rootbox := GTK.GtkVBox new: false spacing: 0.
         window add: rootbox.
 
-	"Table for Memo-List"
-	list := GTK.GtkTreeView new.
-	header := #('Date' 'Title').
-	header keysAndValuesDo: [ :i :value |
-	    | rend col |
-	    rend := GTK.GtkCellRendererText new.
-	    col  := GTK.GtkTreeViewColumn new.
-	    col setTitle: value;
-		packStart: rend expand: true;
-		addAttribute: rend attribute: 'text' column: i-1.
-	    list insertColumn: col position: -1
-	].
-
-	listModel := GTK.GtkListStore new: 2
-				      varargs: { GTK.GValue gTypeString.
-						 GTK.GValue gTypeString }.
-	list setModel: listModel.
-
-	'/media/cofs3/tools/memopad/memo' asFile namesDo: [:filename|
-	    | iter file title|
-	    file := '/media/cofs3/tools/memopad/memo' / filename asFile.
-	    (file isDirectory not & (filename = 'trash') not) ifTrue: [
-		iter := GTK.GtkTreeIter new.
-		listModel append: iter.
-		listModel setOop: iter column: 0 value: filename.
-		title := (file open: 'rw') nextLine.
-		title ifNil: [title := ''] 
-		      ifNotNil: [title := (title asString asUnicodeString:'CP932') asByteArray].
-	        listModel setOop: iter column: 1 value: title
-	    ]
-	].
-
-	list getSelection connectSignal: 'changed' 
-			  to: [ 
-			      | iter |
-			      iter := GTK.GtkTreeIter type new.
-			      (list getSelection getSelected: nil iter: iter)
-				  ifTrue: [
-				      |result f|
-				      result := list getModel getOop: iter column: 1.
-				      result printNl. 
-
-				      f := '/media/cofs3/tools/memopad/memo' / 
-					  (list getModel getOop: iter column: 0) asString.
-				      textbuf setText: (f contents asUnicodeString: 'CP932') asByteArray
-				  ]
-				 
-			  ] selector: #value.
+	"binder := self createBinder: '/media/cofs3/tools/memopad/memoForTest'."
+	binder := self createBinder: '/media/cofs3/tools/memopad/memo'. 
+	list := self createMemoList: binder.
 
         sw1 := GTK.GtkScrolledWindow withChild: list.
         sw1 setPolicy: GTK.Gtk gtkPolicyAutomatic
 	    vscrollbarPolicy: GTK.Gtk gtkPolicyAlways.
 
         textview := GTK.GtkTextView new.
+	textview setWrapMode: GTK.Gtk gtkWrapChar.
         textbuf  := textview getBuffer.
         sw2 := GTK.GtkScrolledWindow withChild: textview.
         sw2 setPolicy: GTK.Gtk gtkPolicyAutomatic
@@ -102,6 +61,84 @@ Object subclass: PettitWorkspace [
 
 	rootbox show.
         window show.
+    ]
+
+    createBinder: directoryPath  [
+	| binder |
+	binder := MemoBinder new.
+	binder setPath: directoryPath asString.
+	binder load.
+	^binder
+    ]
+
+    createMemoList: binder [
+	| header listModel listView|
+
+	"Model"
+	listModel := GTK.GtkListStore new: 3
+				      varargs: { GTK.GValue gTypeString.   "date"
+						 GTK.GValue gTypeString.   "title"
+						 GTK.GValue gTypeString. }."id (hidden)"
+	binder memoTbl do: [ :memo |
+	    | ws iter |
+	    ws := WriteStream on: String new.
+	    memo timestamp printYyyyMmDdOn: ws.
+
+	    iter := GTK.GtkTreeIter new.
+	    listModel append: iter.
+	    listModel setOop: iter column: 0 value: (ws contents asUnicodeString:'CP932') asByteArray.
+	    listModel setOop: iter column: 1 value: (memo title) asByteArray.
+	    listModel setOop: iter column: 2 value: (memo id) asByteArray. "hidden row"
+	].
+
+	"View"
+	listView := GTK.GtkTreeView new.
+	header := #('Date' 'Title').
+	header keysAndValuesDo: [ :i :value |
+	    | rend col |
+	    rend := GTK.GtkCellRendererText new.
+	    col  := GTK.GtkTreeViewColumn new.
+	    col setTitle: value;
+		packStart: rend expand: true;
+		addAttribute: rend attribute: 'text' column: i-1.
+	    listView insertColumn: col position: -1
+	].
+
+	listView setModel: listModel.
+	listView getSelection 
+            connectSignal: 'changed' 
+            to: [
+		| iter |
+	        iter := GTK.GtkTreeIter type new.
+		(list getSelection getSelected: nil iter: iter)
+                    ifTrue: [
+			| memo |
+			memo := binder find: (list getModel getOop: iter column: 2) asString.
+			self changeCurrentMemo: memo.
+		    ]]
+	    selector: #value.
+	^listView
+    ]
+
+    saveCurrentMemo [
+	currentMemo ifNotNil: [
+	    (currentMemo contents = textbuf text asUnicodeString) 
+	        ifFalse: [
+		    Transcript cr; show: 'save';
+		        show: currentMemo id asString;	cr.
+		    currentMemo updateContents: textbuf text asUnicodeString.]
+	]
+    ]
+
+    changeCurrentMemo: newMemo [
+	self saveCurrentMemo.
+	Transcript
+	    show: 'memoID='; show: newMemo id asString;
+	    show: ' :'; show: newMemo title asString;
+	    cr.
+
+	currentMemo := newMemo.
+	textbuf setText: (currentMemo contents) asByteArray.
     ]
 ]
 
