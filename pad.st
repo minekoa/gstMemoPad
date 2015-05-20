@@ -7,9 +7,17 @@ FileStream fileIn: 'memo.st'.
 Object subclass: PettitWorkspace [
     | rootbox northbox southbox buttonbox sw1 sw2 textview textbuf list doitBtn printitBtn newBtn window binder currentMemo |
 
+    PettitWorkspace class >> new: binderPath [
+        | workspace |
+        workspace := PettitWorkspace new.
+        workspace createBinder: binderPath.
+        ^workspace
+    ]
+
     doit [
         ^Behavior evalString: textbuf selectedText to: self.
     ]
+
     printit [
 	| result iter start end |
 	iter := textbuf iterOfSelectedText second.
@@ -55,9 +63,6 @@ Object subclass: PettitWorkspace [
 	rootbox add: southbox.
 	northbox setBorderWidth: 1.
 
-	"binder := self createBinder: '/media/cofs3/tools/memopad/memoForTest'."
-	"binder := self createBinder: '/media/cofs3/tools/memopad/memo'. "
-	binder := self createBinder: '../../../tools/memopad/memo'.
 	list := self createMemoList: binder.
 
         sw1 := GTK.GtkScrolledWindow withChild: list.
@@ -112,7 +117,6 @@ Object subclass: PettitWorkspace [
     ]
 
     createBinder: directoryPath  [
-	| binder |
 	binder := MemoBinder new.
 	binder setPath: directoryPath asString.
 	binder load.
@@ -205,7 +209,7 @@ Object subclass: PettitWorkspace [
 ]
 
 Eval [
-    hello := PettitWorkspace new.
-    hello show.
+    workspace := PettitWorkspace new: '../../Dropbox/contents/memopad/memo'.
+    workspace show.
     GTK.Gtk main
 ]
