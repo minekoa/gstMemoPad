@@ -209,7 +209,17 @@ Object subclass: PettitWorkspace [
 ]
 
 Eval [
-    workspace := PettitWorkspace new: '../../Dropbox/contents/memopad/memo'.
+     | binderPath |
+     "Binderのパスを取得
+     ./pad.st -a hogehoge_binderpath  と打つと任意のメモバインダを開けます
+     何も指定しない場合は本コードにハードコードされたデフォルトのパスを開きます"
+     (Smalltalk getArgc = 0) 
+       ifTrue: [ binderPath := '../../Dropbox/contents/memopad/memo']
+       ifFalse: [ binderPath := Smalltalk getArgv: 1].
+    Transcript show: 'Open MemoBinder: '; show: binderPath; cr.
+
+    "メモパッドアプリケーションの起動"    
+    workspace := PettitWorkspace new: binderPath.
     workspace show.
     GTK.Gtk main
 ]
