@@ -14,16 +14,25 @@ GNU Smalltalk 用の実験パッドとして作った PettitWorkspace と合体�
 
 ### 1. バインダ（メモの保存フォルダ）の指定
 
-PettitWorkspace >> class #new: メソッドの引数に与えるパスを
+pad.st 最下部 Eval ブロック内にハードコート記述されたパスを
 都合の良いパスに置き換えます。
 
-```smalltalk:pad.st
+```smalltalk
 Eval [
-    workspace := PettitWorkspace new: '../../Dropbox/contents/memopad/memo'.
-    workspace show.
-    GTK.Gtk main
-]
-````
+     | binderPath |
+     "Binderのパスを取得
+     ./pad.st -a hogehoge_binderpath  と打つと任意のメモバインダを開けます
+     何も指定しない場合は本コードにハードコードされたデフォルトのパスを開きます"
+     (Smalltalk getArgc = 0) 
+       ifTrue: [ binderPath := '../../Dropbox/contents/memopad/memo']
+       ifFalse: [ binderPath := Smalltalk getArgv: 1].
+    Transcript show: 'Open MemoBinder: '; show: binderPath; cr.
+```
+（上記コードの ifTrue: ブロック内で binderPath に設定されているパスを書き換える）
+
+
+または、argv でBinderのパスを与えることもできます（後述）
+
 
 ### 2. アプリケーションの起動
 その後、以下を実行します。
@@ -31,6 +40,15 @@ Eval [
 ```
 $ ./pad.st
 ```
+argv でBinderのパスを与えるには以下のようにします
+
+```
+./pad.st -a test_binder
+```
+
+note:
+GNU Smalltalk は プログラムからコマンドライン引数を取得出来るようにするためには
+-a オプションが必要です。
 
 ## 未実装機能
 
@@ -42,7 +60,6 @@ Smalltalk Pad としての機能
 
 MemoPad アプリとしての機能 (Python からの移植）
 
-* ゴミ箱機能（メモを捨てられない）
 * changelog 作成機能（アプリが落ちた時の変更内容の救済機能】
 * リスト部をドラックすることでメモを「ペラペラめくる」機能
 
@@ -63,21 +80,23 @@ doit/ printit は PettitWorkspace 自体を self として
 実行されます
 
 ```
-                                                       ┌──────────────┐
-┌────────┐               ┌───────┐ /│Memoオブジェクトの取り纏めと└┐     
-│PettitWorkspace │binder ◆───│ MemoBinder   │/ │シリアライズを担う            │
-├────────┤               ├───────┤  └───────────────┘
-│                │               │-path         │
-│                │               │-memoTbl      │
-│                │               ├───────┤
-│                │               │+memoTbl      │
-│                │               │+load         │
-│                │               │+save         │
-│                │               │+save: memoObj│
-│                │               │+find: memoId │
-└────────┘               └───────┘
+                                                             ┌──────────────┐
+┌────────┐               ┌──────────┐ /│Memoオブジェクトの取り纏めと└┐     
+│PettitWorkspace │binder ◆───│ MemoBinder         │/ │シリアライズを担う            │
+├────────┤               ├──────────┤  └───────────────┘
+│                │               │-path               │
+│                │               │-memoTbl            │
+│                │               ├──────────┤
+│                │               │+memoTbl            │
+│                │               │+createMemo         │
+│                │               │+deleteMemo: memoObj│
+│                │               │+load               │
+│                │               │+save               │
+│                │               │+save: memoObj      │
+│                │               │+find: memoId       │
+└────────┘               └──────────┘
          currentMemo ◇                  ◆1
-                     │                  │
+                     │                  │0..*
                      │           ┌────────┐
                      │           │     Memo       │
                      │           ├────────┤
@@ -94,5 +113,3 @@ doit/ printit は PettitWorkspace 自体を self として
                                   │+title          │
                                   └────────┘
 ```
-
-+ printit
